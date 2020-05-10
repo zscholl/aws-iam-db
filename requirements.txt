@@ -1,1 +1,5 @@
 -e .
+
+boto3
+git+git://github.com/zscholl/policy_sentry.git@initialize-library#egg=policy_sentry
+black

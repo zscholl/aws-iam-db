@@ -2,10 +2,12 @@
 
 from aws_cdk import core
 
-from iam_policy_db.iam_policy_db_stack import IamPolicyDbStack
+from iam_policy_db.iam_policy_db import IamPolicyDb
+from iam_policy_db.iam_policy_db_loader import IamPolicyDbLoader
 
 
 app = core.App()
-IamPolicyDbStack(app, "iam-policy-db")
+db_stack = IamPolicyDb(app, "iam-policy-db")
+IamPolicyDbLoader(app, "iam-policy-db-loader", db_stack.table)
 
 app.synth()
