@@ -24,7 +24,7 @@ class IamPolicyDbLoader(core.Stack):
             code=_lambda.Code.from_asset(
                 (Path(__file__).parent.parent / "loader").as_posix()
             ),
-            environment={"IamPolicyDBARN": table.table_arn},
+            environment={"IamPolicyActionsTable": table.table_name},
         )
         table.grant_write_data(fn)
         daily = events.Rule(

@@ -11,7 +11,7 @@ class IamPolicyDb(core.Stack):
 
         self._table = dynamodb.Table(
             self,
-            "IamPolicy",
+            "IamPolicyActions",
             partition_key=dynamodb.Attribute(
                 name="action", type=dynamodb.AttributeType.STRING
             ),
