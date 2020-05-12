@@ -2,9 +2,20 @@ from hashlib import sha256
 import json
 import os
 from pathlib import Path
+import logging
 
 import boto3
+from botocore.exceptions import ClientError
+from policy_sentry.shared import constants
+constants.CONFIG_DIRECTORY = "/tmp/.policy_sentry"
+constants.LOCAL_DATASTORE_FILE_PATH = "/tmp/.policy_sentry/iam-definition.json"
+constants.LOCAL_ACCESS_OVERRIDES_FILE = "/tmp/.policy_sentry/access-level-overrides.yml"
+constants.LOCAL_HTML_DIRECTORY_PATH = "/tmp/.policy_sentry/data/docs"
+
 from policy_sentry.command.initialize import initialize
+
+logger = logging.getLogger("DBLoader")
+logger.setLevel(logging.INFO)
 
 
 class AWSService:
@@ -16,6 +27,7 @@ class AWSService:
             resource["resource"]: AWSResource(resource)
             for resource in data["resources"]
         }
+        self.resources["*"] = AWSResource({"resource": "*", "arn": "*", "condition_keys": []})
         self.conditions = data["conditions"]
 
     def to_dynamo(self):
@@ -24,13 +36,14 @@ class AWSService:
             dynamo_action = {
                 "action": {"S": f"{self.prefix}:{action.action}"},
                 "access_level": {"S": action.access_level},
-                "description": {"S": action.description},
             }
             if (
-                len(action.resource_types) > 1
+                len(action.resource_types) >= 1
                 and action.resource_types[0].resource_type != "*"
             ):
                 dynamo_action["resources"] = {"L": self.build_dynamo_resource(action)}
+            if action.description:
+                dynamo_action["description"] = {"S": action.description}
             self.dynamo_actions.append(dynamo_action)
 
     def build_dynamo_resource(self, action):
@@ -86,12 +99,14 @@ class AWSCondition:
 
 def handler(event, context):
     shasum, data = refresh_data()
+    logger.info(f"Data has has {shasum}")
     stored_hash = None
 
     ssm = boto3.client("ssm")
     try:
         stored_hash = ssm.get_parameter(Name="iam_data_hash")["Parameter"]["Value"]
     except ssm.exceptions.ParameterNotFound:
+        logger.info("Parameter not found. Initializing")
         ssm.put_parameter(Name="iam_data_hash", Value=shasum, Type="String")
 
     if (
@@ -99,16 +114,17 @@ def handler(event, context):
         and stored_hash == shasum
         and not event.get("forceupdate", False)
     ):
-        print("No updates to policy data")
+        print("No updates to policy data, exiting")
         exit(0)
 
     services = [AWSService(service) for service in data]
     update_database(services)
+    ssm.put_parameter(Name="iam_data_hash", Value=shasum, Type="String", Overwrite=True)
 
 
 def refresh_data():
     initialize(None, True, True)
-    with open(Path.home() / ".policy_sentry/iam-definition.json", "r") as data_file:
+    with open("/tmp/.policy_sentry/iam-definition.json", "r") as data_file:
         hasher = sha256()
         hasher.update(data_file.read().encode("utf-8"))
         shasum = hasher.hexdigest()
@@ -120,9 +136,13 @@ def update_database(services):
     table_name = os.environ["IamPolicyActionsTable"]
     dynamo = boto3.client("dynamodb")
     for service in services:
+        logger.info(f"Updating service {service.service_name}")
         service.to_dynamo()
         for item in service.dynamo_actions:
-            dynamo.put_item(TableName=table_name, Item=item)
+            try:
+                dynamo.put_item(TableName=table_name, Item=item)
+            except ClientError:
+                logger.error(f"Unable to put item: {item}", exc_info=True)
 
 
 if __name__ == "__main__":

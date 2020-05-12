@@ -20,6 +20,7 @@ setuptools.setup(
         "aws-cdk.aws_lambda",
         "aws-cdk.aws_events",
         "aws-cdk.aws_events_targets",
+        "aws-cdk.aws_iam"
     ],
     python_requires=">=3.6",
     classifiers=[
