@@ -8,7 +8,7 @@ from aws_cdk import (
     aws_events as events,
     aws_events_targets as targets,
     aws_iam as iam,
-    core
+    core,
 )
 
 
@@ -37,16 +37,19 @@ class IamPolicyDbLoader(core.Stack):
             environment={"IamPolicyActionsTable": table.table_name},
             layers=[layer],
             timeout=core.Duration.minutes(15),
-            memory_size=512
+            memory_size=512,
         )
         table.grant_write_data(fn)
-        ssm_policy = iam.PolicyStatement(actions=["ssm:GetParameter", "ssm:PutParameter"], effect=iam.Effect.ALLOW, resources=["arn:aws:ssm:us-east-2:947245232016:parameter/iam_data_hash"])
+        ssm_policy = iam.PolicyStatement(
+            actions=["ssm:GetParameter", "ssm:PutParameter"],
+            effect=iam.Effect.ALLOW,
+            resources=["arn:aws:ssm:us-east-2:947245232016:parameter/iam_data_hash"],
+        )
         fn.add_to_role_policy(ssm_policy)
         daily = events.Rule(
             self, "LoadDaily", schedule=events.Schedule.rate(core.Duration.days(1))
         )
         daily.add_target(targets.LambdaFunction(fn))
-
 
     def create_dependencies_layer(
         self, requirements_path: str, output_dir: str
