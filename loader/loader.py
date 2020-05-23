@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import logging
+from uuid import uuid4
 
 import boto3
 from botocore.exceptions import ClientError
@@ -28,15 +29,59 @@ class AWSService:
             resource["resource"]: AWSResource(resource)
             for resource in data["resources"]
         }
-        self.resources["*"] = AWSResource(
-            {"resource": "*", "arn": "*", "condition_keys": []}
-        )
         self.conditions = data["conditions"]
+    
+    def to_json(self):
+        actions = []
+        for action in self.actions:
+            item = {
+                "id": action.uuid,
+                "action": f"{self.prefix}:{action.action}",
+                "access_level": action.access_level,
+                "service_name": self.service_name
+            }
+            if (
+                len(action.resource_types) >= 1
+                and action.resource_types[0].resource_type != "*"
+            ):
+                item["resources"] = self.build_resources(action)
+            if action.description:
+                item["description"] = action.description
+            actions.append(item)
+        return actions
+    
+    def build_resources(self, action):
+        resources = []
+        for resource in action.resource_types:
+            entry = {}
+            entry["resource"] = resource.resource_type
+            entry["arn"] = self.resources[resource.resource_type].arn if resource.resource_type != '*' else '*'
+            if resource.resource_type != '*' and len(self.resources[resource.resource_type].condition_keys) > 0:
+                entry["conditions"] =  self.resources[resource.resource_type].condition_keys
+            resources.append(entry)
+        # remove * resource if others exist
+        # TODO: conditions aren't being parsed into the object for S3
+        return_list = []
+        if len(resources) > 1:
+            conditions = None
+            for resource in resources:
+                if resource["arn"] != "*":
+                    return_list.append(resource)
+                if "conditions" in resource:
+                    # there's an edge case where some resources allow condition keys
+                    # but AWS lists them in the blank row. So we need to do this
+                    # to keep conditions on the more specific resource
+                    conditions = resource["conditions"]
+            if conditions and len(return_list) == 1:
+                return_list[0]["conditions"] = conditions
+            return return_list
+        return resources
 
     def to_dynamo(self):
         self.dynamo_actions = []
         for action in self.actions:
             dynamo_action = {
+                "id": {"S": action.uuid},
                 "action": {"S": f"{self.prefix}:{action.action}"},
                 "access_level": {"S": action.access_level},
                 "service_name": {"S": self.service_name}
@@ -66,6 +111,7 @@ class AWSService:
 
 class AWSAction:
     def __init__(self, data):
+        self.uuid = str(uuid4())
         self.action = data["privilege"]
         self.description = data["description"]
         self.access_level = data["access_level"]
@@ -150,4 +196,12 @@ def update_database(services):
 
 
 if __name__ == "__main__":
-    handler({"forceupdate": True}, None)
+    with open("/tmp/.policy_sentry/iam-definition.json", "r") as data_file:
+        data = json.load(data_file)
+    services = [AWSService(service) for service in data]
+
+    actions = []
+    for service in services:
+        actions.extend(service.to_json())
+    with open("actions.json", "w") as out_file:
+        json.dump(actions, out_file)

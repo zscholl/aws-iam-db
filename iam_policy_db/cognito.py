@@ -23,6 +23,7 @@ class DbAccess(core.Stack):
                     "StringEquals": {"cognito-identity.amazonaws.com:aud": pool.ref},
                     "ForAnyValue:StringLike": {"cognito-identity.amazonaws.com:amr": "unauthenticated"}
                 },
+                assume_role_action="sts:AssumeRoleWithWebIdentity"
             ),
         )
         cognito.CfnIdentityPoolRoleAttachment(
