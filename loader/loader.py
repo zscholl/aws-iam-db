@@ -69,7 +69,7 @@ class AWSService:
                     return_list.append(resource)
                 if "conditions" in resource:
                     # there's an edge case where some resources allow condition keys
-                    # but AWS lists them in the blank row. So we need to do this
+                    # but AWS only lists them in the blank row. So we need to do this
                     # to keep conditions on the more specific resource
                     conditions = resource["conditions"]
             if conditions and len(return_list) == 1:
