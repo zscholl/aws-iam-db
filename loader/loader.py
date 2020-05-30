@@ -6,6 +6,7 @@ import logging
 from uuid import uuid4
 
 import boto3
+import click
 from botocore.exceptions import ClientError
 from policy_sentry.shared import constants
 
@@ -194,8 +195,13 @@ def update_database(services):
             except ClientError:
                 logger.error(f"Unable to put item: {item}", exc_info=True)
 
-
-if __name__ == "__main__":
+@click.command()
+@click.option('-o', '--output-path', default='actions.json')
+def main(output_path):
+    """
+    Builds new iam definitions from AWS docs pages using policy sentry
+    """
+    refresh_data()
     with open("/tmp/.policy_sentry/iam-definition.json", "r") as data_file:
         data = json.load(data_file)
     services = [AWSService(service) for service in data]
@@ -203,5 +209,9 @@ if __name__ == "__main__":
     actions = []
     for service in services:
         actions.extend(service.to_json())
-    with open("actions.json", "w") as out_file:
+    with open(output_path, "w") as out_file:
         json.dump(actions, out_file)
+
+
+if __name__ == "__main__":
+    main()
