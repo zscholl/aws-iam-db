@@ -197,8 +197,9 @@ def update_database(services):
 
 @click.command()
 @click.option('-o', '--output-path', default='actions.json')
+@click.option('--hash-output-path', default='actions.shasum')
 @click.option('-h', '--file-hash')
-def main(output_path, file_hash):
+def main(output_path, hash_output_path, file_hash):
     """
     Builds new iam definitions from AWS docs pages using policy sentry
     """
@@ -214,6 +215,8 @@ def main(output_path, file_hash):
         actions.extend(service.to_json())
     with open(output_path, "w") as out_file:
         json.dump(actions, out_file)
+    with open(hash_output_path, "w") as hash_out:
+        hash_out.write(shasum)
 
 
 if __name__ == "__main__":
