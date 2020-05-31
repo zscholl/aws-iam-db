@@ -197,13 +197,16 @@ def update_database(services):
 
 @click.command()
 @click.option('-o', '--output-path', default='actions.json')
-def main(output_path):
+@click.option('-h', '--file-hash')
+def main(output_path, file_hash):
     """
     Builds new iam definitions from AWS docs pages using policy sentry
     """
-    refresh_data()
-    with open("/tmp/.policy_sentry/iam-definition.json", "r") as data_file:
-        data = json.load(data_file)
+    shasum, data = refresh_data()
+    if file_hash:
+        if shasum == file_hash:
+            logger.info("Data is unchanged. Exiting.")
+            exit(0)
     services = [AWSService(service) for service in data]
 
     actions = []
