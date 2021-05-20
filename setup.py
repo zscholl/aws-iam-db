@@ -15,7 +15,7 @@ setuptools.setup(
     package_dir={"": "iam_policy_db"},
     packages=setuptools.find_packages(where="iam_policy_db"),
     install_requires=[
-        "aws-cdk.core==1.38.0",
+        "aws-cdk.core==1.105.0",
         "aws-cdk.aws_dynamodb",
         "aws-cdk.aws_lambda",
         "aws-cdk.aws_events",
