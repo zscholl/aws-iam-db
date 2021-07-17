@@ -49,7 +49,7 @@ class Action(Base):
 
     __tablename__ = "action"
     id = Column(Integer, primary_key=True)
-    name = Column(String(), index=True, unique=True)
+    name = Column(String(), index=True)
     description = Column(String())
     access_level = Column(String(), index=True)
     resources = relationship("Resource", secondary=action_resource_table)
