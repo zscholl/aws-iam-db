@@ -82,7 +82,6 @@ class AWSService:
         self.dynamo_actions = []
         for action in self.actions:
             dynamo_action = {
-                "id": {"S": action.uuid},
                 "action": {"S": f"{self.prefix}:{action.action}"},
                 "access_level": {"S": action.access_level},
                 "service_name": {"S": self.service_name}

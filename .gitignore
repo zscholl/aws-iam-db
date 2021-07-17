@@ -12,3 +12,8 @@ cdk.out
 
 .vscode
 .layer
+
+.DS_Store
+
+docs
+iam.db
