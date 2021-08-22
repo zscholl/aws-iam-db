@@ -1,3 +1,0 @@
-policy_sentry==0.8.8
-click
-boto3
