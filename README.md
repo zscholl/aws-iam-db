@@ -2,7 +2,7 @@
 
 This project creates a local sqlite database of AWS IAM actions using the AWS IAM documentation pages.
 
-By default it creates a sqlite database in the current directory called `iam.db` and stores copies of the AWS documentation pages in a `/tmp` directory.
+By default it creates a sqlite database in the current directory called `iam.db` and stores copies of the AWS documentation pages in the `/tmp` directory.
 
 ### Install
 
