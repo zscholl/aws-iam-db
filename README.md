@@ -8,4 +8,4 @@ This project creates a local sqlite database of AWS IAM actions using the AWS IA
 
 ### Usage
 
-`aws-iam-db init`
+`aws-iam-db`
