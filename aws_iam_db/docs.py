@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+### adapted from: https://github.com/duo-labs/parliament/blob/main/utils/update_iam_data.py
 
 from os import listdir
 from os.path import isfile, join
