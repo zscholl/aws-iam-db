@@ -1,4 +1,4 @@
--e .
-
-boto3
-black
+requests
+typer
+sqlalchemy
+beautifulsoup4
