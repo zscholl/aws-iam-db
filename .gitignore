@@ -2,7 +2,7 @@
 package-lock.json
 __pycache__
 .pytest_cache
-.env
+.venv
 *.egg-info
 
 # CDK asset staging directory
@@ -17,3 +17,7 @@ cdk.out
 
 docs
 iam.db
+actions_data.json
+
+build
+dist
