@@ -6,7 +6,7 @@ By default it creates a sqlite database in the current directory called `iam.db`
 
 ### Install
 
-`git clone https://github.com/zscholl/aws-iam-db.git && cd aws-iam-db && python setup.py install`
+`python -m pip install aws-iam-db`
 
 ### Usage
 ```
