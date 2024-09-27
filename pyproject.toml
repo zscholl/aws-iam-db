@@ -1,3 +1,14 @@
 [build-system]
 requires = ["setuptools>=42", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "aws-iam-db"
+version = "0.0.1"
+description = "AWS IAM Database"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["requests", "typer", "sqlalchemy", "beautifulsoup4"]
+
+[project.scripts]
+main = "aws_iam_db.__main__:main"
