@@ -100,61 +100,85 @@ class Condition(Base):
             self.description,
         )
 
+def get_service_from_action(action_name: str) -> str:
+    return action_name.split(':')[0]
+
+def get_service_from_arn(arn: str) -> str:
+    # Extract service from ARN pattern like "arn:${Partition}:rds:${Region}:..."
+    parts = arn.split(':')
+    if len(parts) > 2:
+        return parts[2]
+    return ""
+
 
 def create_database(db_session: Session, json_data: list):
     with typer.progressbar(json_data, label="Creating database") as progress:
         for row in progress:
-            # 'conditions', 'prefix', 'privileges', 'resources', 'service_name'
+            service_name = row['prefix']  # e.g., 'rds', 'eks'
+
+            # Create conditions first
+            condition_map = {}  # Cache conditions to avoid duplicates
             for cond in row["conditions"]:
-                new_cond = Condition(
-                    name=cond["condition"],
-                    description=cond["description"],
-                    type=cond["type"],
-                )
-                db_session.add(new_cond)
-            for res in row["resources"]:
-                new_res = Resource(
-                    name=res["resource"],
-                    arn=res["arn"].rstrip("*"),
-                    required=res["arn"].endswith("*"),
-                )
-                if len(res["condition_keys"]) > 0:
-                    conditions = (
-                        db_session.query(Condition)
-                        .filter(Condition.name.in_(res["condition_keys"]))
-                        .all()
+                condition_key = cond["condition"]
+                if condition_key not in condition_map:
+                    new_cond = Condition(
+                        name=condition_key,
+                        description=cond["description"],
+                        type=cond["type"],
                     )
-                    new_res.condition_keys.extend(conditions)
-                db_session.add(new_res)
+                    db_session.add(new_cond)
+                    condition_map[condition_key] = new_cond
+
+            # Create resources for this service
+            resource_map = {}  # Cache resources to avoid duplicates
+            for res in row["resources"]:
+                resource_key = (service_name, res["resource"])
+                if resource_key not in resource_map:
+                    new_res = Resource(
+                        name=res["resource"],
+                        arn=res["arn"].rstrip("*"),
+                        required=res["arn"].endswith("*"),
+                    )
+                    if res["condition_keys"]:
+                        conditions = [
+                            condition_map[key]
+                            for key in res["condition_keys"]
+                            if key in condition_map
+                        ]
+                        new_res.condition_keys.extend(conditions)
+                    db_session.add(new_res)
+                    resource_map[resource_key] = new_res
+
+            # Create privileges/actions
             for priv in row["privileges"]:
-                # pull resources
-                resource_names = [
-                    res["resource_type"].rstrip("*") for res in priv["resource_types"]
-                ]
-                resources = (
-                    db_session.query(Resource)
-                    .filter(Resource.name.in_(resource_names))
-                    .all()
-                )
-                # create dependent actions
+                # Get matching resources for this privilege
+                matching_resources = []
+                for res_type in priv["resource_types"]:
+                    resource_name = res_type["resource_type"].rstrip("*")
+                    resource_key = (service_name, resource_name)
+                    if resource_key in resource_map:
+                        matching_resources.append(resource_map[resource_key])
+
+                # Handle dependent actions
                 dep_actions = []
                 for res_type in priv["resource_types"]:
-                    dep_actions.extend(
-                        [
-                            DependentAction(
-                                name=act, resource=res_type["resource_type"].rstrip("*")
-                            )
-                            for act in res_type["dependent_actions"]
-                        ]
-                    )
+                    dep_actions.extend([
+                        DependentAction(
+                            name=act,
+                            resource=res_type["resource_type"].rstrip("*")
+                        )
+                        for act in res_type["dependent_actions"]
+                    ])
+
                 new_priv = Action(
-                    name=f"{row['prefix']}:{priv['privilege']}",
+                    name=f"{service_name}:{priv['privilege']}",
                     description=priv["description"],
                     access_level=priv["access_level"],
-                    resources=resources,
+                    resources=matching_resources,
                     dependent_actions=dep_actions,
                 )
                 db_session.add(new_priv)
+
     db_session.commit()
     typer.echo("Database created!")
 
