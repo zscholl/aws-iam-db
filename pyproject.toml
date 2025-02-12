@@ -11,4 +11,4 @@ requires-python = ">=3.10"
 dependencies = ["requests", "typer", "sqlalchemy", "beautifulsoup4"]
 
 [project.scripts]
-main = "aws_iam_db.__main__:main"
+aws-iam-db = "aws_iam_db.__main__:main"
