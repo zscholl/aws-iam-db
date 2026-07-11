@@ -182,9 +182,16 @@ def get_docs(json_path: str):
                             continue
 
                         if len(cells) != 6:
-                            # Sometimes the privilege contains Scenarios, and I don't know how to handle this
-                            break
-                            # raise Exception("Unexpected format in {}: {}".format(prefix, row))
+                            # A row without the expected 6 columns (an AWS
+                            # "Scenario" sub-row, or an unexpected structural
+                            # change) used to `break`, which abandoned parsing of
+                            # the ENTIRE actions table — silently dropping this
+                            # action and every action listed after it (this is
+                            # how e.g. acm:RequestCertificate disappeared once AWS
+                            # inserted new rows above it). Skip just this row so
+                            # the remaining actions are still captured.
+                            row_number += 1
+                            continue
 
                         # See if this cell spans multiple rows
                         rowspan = 1
