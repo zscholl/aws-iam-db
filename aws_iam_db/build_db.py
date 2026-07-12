@@ -28,6 +28,27 @@ resource_condition_table = Table(
     Column("condition_id", Integer, ForeignKey("condition.id")),
 )
 
+# Condition keys that AWS documents for an action itself. AWS lists condition
+# keys per (action, resource type) row in the "Actions" table; the union of
+# those keys is the set usable with the action. This is distinct from
+# `resource_condition`, which records the keys a *resource type* supports. Some
+# actions (e.g. acm:RequestCertificate) operate on no resource type at all and
+# carry their keys on a blank-resource-type row, so without this table those
+# keys would be dropped entirely.
+action_condition_table = Table(
+    "action_condition",
+    Base.metadata,
+    Column("action_id", Integer, ForeignKey("action.id")),
+    Column("condition_id", Integer, ForeignKey("condition.id")),
+)
+
+
+def normalize_condition_key(key: str) -> str:
+    """Collapse all whitespace out of a condition key so keys scraped from the
+    Actions table (which only collapses runs of whitespace) line up with the
+    same keys scraped from the condition-keys table (which strips it all)."""
+    return "".join(str(key).split())
+
 
 class DependentAction(Base):
     """SQLAlchemy Declarative configuration for the Dependent Actions table"""
@@ -56,6 +77,7 @@ class Action(Base):
     access_level = Column(String(), index=True)
     resources = relationship("Resource", secondary=action_resource_table)
     dependent_actions = relationship("DependentAction")
+    condition_keys = relationship("Condition", secondary=action_condition_table)
 
     def __repr__(self):
         return "<Action(name='%s', description='%s', access_level='%s')>" % (
@@ -118,6 +140,10 @@ def create_database(db_session: Session, json_data: list):
 
             # Create conditions first
             condition_map = {}  # Cache conditions to avoid duplicates
+            # Same conditions keyed by their whitespace-normalized name, so the
+            # keys listed against actions can be matched even if their spacing
+            # differs from the condition-keys table.
+            normalized_condition_map = {}
             for cond in row["conditions"]:
                 condition_key = cond["condition"]
                 if condition_key not in condition_map:
@@ -128,6 +154,9 @@ def create_database(db_session: Session, json_data: list):
                     )
                     db_session.add(new_cond)
                     condition_map[condition_key] = new_cond
+                    normalized_condition_map[normalize_condition_key(condition_key)] = (
+                        new_cond
+                    )
 
             # Create resources for this service
             resource_map = {}  # Cache resources to avoid duplicates
@@ -170,12 +199,36 @@ def create_database(db_session: Session, json_data: list):
                         for act in res_type["dependent_actions"]
                     ])
 
+                # Collect the condition keys AWS documents for this action: the
+                # union across every resource-type row, including a row with no
+                # resource type (where action-level keys live). Matching through
+                # the resource types alone would miss those keys.
+                action_conditions = []
+                seen_condition_keys = set()
+                for res_type in priv["resource_types"]:
+                    for key in res_type["condition_keys"]:
+                        normalized_key = normalize_condition_key(key)
+                        if not normalized_key or normalized_key in seen_condition_keys:
+                            continue
+                        seen_condition_keys.add(normalized_key)
+                        condition = normalized_condition_map.get(normalized_key)
+                        if condition is None:
+                            # The Actions table referenced a key the service's
+                            # condition-keys table didn't list; keep it anyway so
+                            # the association is complete.
+                            condition = Condition(name=key, description="", type="")
+                            db_session.add(condition)
+                            condition_map[key] = condition
+                            normalized_condition_map[normalized_key] = condition
+                        action_conditions.append(condition)
+
                 new_priv = Action(
                     name=f"{service_name}:{priv['privilege']}",
                     description=priv["description"],
                     access_level=priv["access_level"],
                     resources=matching_resources,
                     dependent_actions=dep_actions,
+                    condition_keys=action_conditions,
                 )
                 db_session.add(new_priv)
 
